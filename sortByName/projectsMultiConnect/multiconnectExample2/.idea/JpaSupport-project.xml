@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DatabaseSettingsState">
+    <option name="database" value="datasource1" />
+    <option name="driverClass" value="com.mysql.jdbc.Driver" />
+    <option name="driverPath" value="C:\Users\Арман\.m2\repository\mysql\mysql-connector-java\5.1.45\mysql-connector-java-5.1.45.jar" />
+    <option name="url" value="jdbc:mysql://localhost:3306" />
+    <option name="username" value="spring" />
+  </component>
+</project>

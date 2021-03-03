@@ -1,0 +1,12 @@
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\model\card\Card.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\configuration\MemberDataSourceConfiguration.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\model\member\Member.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\anaotherConfiguration\MultitenancyProperties.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\anaotherConfiguration\DataSourceConfig.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\Application.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\configuration\CardHolderDataSourceConfiguration.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\repository\card\CardRepository.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\model\cardholder\CardHolder.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\repository\cardholder\CardHolderRepository.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\configuration\CardDataSourceConfiguration.java
+C:\Users\Арман\Documents\connectToTwoDatabaseExample\src\main\java\repository\member\MemberRepository.java

@@ -1,0 +1,302 @@
+Приложение с несколькими базами данных с загрузкой Spring
+
+Предположим, что у нас есть 3 базы данных на сервере A (jdbc: postgresql: //127.0.0.1: 5432 / db1), сервере B (jdbc: postgresql: //127.0.0.1: 5432 / db2) и сервере C (jdbc: postgresql : //127.0.0.1: 5432 / db3), и мы запускаем наше приложение на централизованном сервере (127.
+На основе данных запроса мы определим правильную базу данных и изменим наше соединение, чтобы использовать правильную базу данных. Эта идентификация будет автоматической на основе некоторого параметра, который будет получен по запросу. Как только у нас будет правильная база данных,
+мы изменим запрос на это соединение гибернации, и все будет продолжаться, как ожидалось, при одном подключении к базе данных.
+Эта идентификация может быть основана на IP-адресе запроса, некотором параметре идентификации в запросе или на том, что вам нравится, но предпосылкой для этого является то, что вы можете изменить базу данных в любое время на основе какого-либо параметра вашего запроса таким образом, чтобы ваш клиент никогда не узнает и не увидит.
+Для управления несколькими соединениями с базой данных мы будем использовать аннотацию @Qualifier , поэтому мы можем вызывать каждое соединение по его имени. В нашем примере мы изменим соединение на основе URL-адреса запроса и будем управлять им, используя файлы хостов для подделки нашего DNS,
+чтобы мы могли легко вызывать несколько URL-адресов на один и тот же сервер. Для этого вам придется отредактировать определенные файлы в зависимости от используемой вами ОС.
+Наша база данных будет состоять из одной простой таблицы для иллюстрации. Для начала мы будем использовать сайт mockaroo, чтобы случайным образом сгенерировать некоторые фиктивные данные. Этот веб-сайт отлично подходит для создания некоторых тестовых данных для игры, и вы можете бесплатно генерировать 1000 строк для каждого файла, и это может помочь вам ускорить ваши тесты с некоторыми случайными данными.
+В качестве IDE я буду использовать IntelliJ IDEA от Jetbrains, отличную среду IDE, но вы можете использовать ее, когда захотите, и вы никогда не сможете ее использовать, любой текстовый редактор подойдет, но я предпочитаю IntelliJ, потому что он простой, чистый, быстрый и надежный.
+Записывая это
+Перво-наперво. Давайте запустим этот файл SQL в нашей базе данных, чтобы создать и заполнить нашу базу данных. Не забудьте сначала проверить свой файл SQL, потому что некоторые СУБД используют разные типы данных. Внутри репозитория вы найдете папку SQL с двумя файлами SQL, один из которых называется PERSONS_Original.sql, а другой - PERSONS.sql, обратите внимание, что я изменил PERSONS.sql, чтобы он соответствовал типам данных PostgreSQL, но я оставил исходный файл также просто для сравнения.
+
+create table PERSONS (
+    id INT,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    email VARCHAR(50),
+    gender VARCHAR(50)
+);
+insert into PERSONS (id, first_name, last_name, email, gender) values (1, 'Donald', 'Watkins', 'dwatkins0@sfgate.com', 'Male');
+insert into PERSONS (id, first_name, last_name, email, gender) values (2, 'Angela', 'Hall', 'ahall1@hostgator.com', 'Female');
+insert into PERSONS (id, first_name, last_name, email, gender) values (3, 'Victor', 'Jacobs', 'vjacobs2@slate.com', 'Male');
+insert into PERSONS (id, first_name, last_name, email, gender) values (4, 'Raymond', 'Jenkins', 'rjenkins3@rediff.com', 'Male');
+
+
+ОК, начнем. Сначала мы импортируем наш пакет из Spring initializr, чтобы выиграть время. После импорта давайте сначала создадим нашу модель, представление нашей базы данных в коде. Создайте новый пакет внутри вашего текущего пакета и назовите его «модели». Таким образом, мы начнем разделять часть нашего кода на группы или пакеты. Пакеты - это не что иное, как папки внутри нашей структуры, но они получают другое имя. Создайте внутри него наш класс Person.java и запишите свойства,
+ представляющие все поля базы данных. Мы будем использовать некоторые аннотации, чтобы отметить некоторые из наших свойств, например @NotEmpty и @NotNull., поэтому мы получим некоторый уровень проверки данных перед их сохранением. Мы будем использовать стратегию генерации для нашего первичного ключа, поэтому нам не нужно будет беспокоиться о некотором дублировании первичного ключа. Чтобы пометить этот класс как объект, мы будем использовать аннотации @Entity и @Table , чтобы пометить этот класс и привязать его к правой таблице в нашей базе данных.
+  Вы заметите, что я использую CamelCase в именах своих свойств, потому что я к нему привык. Хорошо, давайте посмотрим, как реализован наш первый класс.
+
+  @Entity
+  @Table(name="PERSONS")
+  public class Person {
+
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      @Column(nullable = false, updatable = false)
+      private Long id;
+
+      @NotEmpty
+      @NotNull
+      @Column(name="first_name",length = 50)
+      private String firstName;
+
+      @NotEmpty
+      @NotNull
+      @Column(name="last_name",length = 50)
+      private String lastName;
+
+      @NotEmpty
+      @NotNull
+      @Column(length = 50)
+      private String email;
+
+      @NotEmpty
+      @NotNull
+      @Column(name="gender",length = 50)
+      private String gender;
+
+      ..... Edited for brevity ...
+  }
+
+  Теперь давайте создадим код, чтобы извлечь его из базы данных, давайте создадим наш объект доступа к данным, и большую часть времени в качестве разработчиков мы писали много кода DAO, но теперь с Spring и его волшебными трюками мы может возобновить весь этот код с помощью простого интерфейса.
+  Создайте пакет репозитория и внутри него создайте интерфейс с именем PersonRepository.java.
+
+  @Service
+  public interface PersonRepository extends CrudRepository<Person,Long> {
+  }
+
+  Теперь давайте создадим код, чтобы извлечь его из базы данных, давайте создадим наш объект доступа к данным, и большую часть времени в качестве разработчиков мы писали много кода DAO, но теперь с Spring и его волшебными трюками мы может возобновить весь этот код с помощью простого интерфейса.
+   Создайте пакет репозитория и внутри него создайте интерфейс с именем PersonRepository.java.
+
+    Используя магию Spring Data, мы можем расширить наш интерфейс репозитория с помощью CrudRepository и передать этому универсальному интерфейсу, какой объект мы хотим вытащить (в нашем случае Person) и какой тип его первичного ключа (тип Long), и это Кстати, этот интерфейс будет автоматически реализован с помощью данных Spring, и нам не нужно будет писать десяток строк кода только для создания запроса. Мы очень скоро увидим, насколько просто использовать этот интерфейс.
+   Пришло время подключиться к нашей базе данных. Начнем с некоторого класса конфигурации. Создайте пакет конфигурации и создайте внутри него класс Java с именем DatabaseMain.java. Это будет наша основная связь, и с этого момента мы будем записывать множество аннотаций в этом классе.
+
+
+@Configuration
+@EnableTransactionManagement
+@ComponentScan("ord.paulushc")
+@PropertySource("file:./database.properties")
+@EnableJpaRepositories(
+        basePackages = "org.paulushc",
+        entityManagerFactoryRef = "mainEntityManager",
+        transactionManagerRef = "mainTransactionManager")
+public class DatabaseMain {
+
+    @Value("${main.db.driver}")
+    private String driver;
+    @Value("${main.db.url}")
+    private String url;
+    @Value("${main.db.username}")
+    private String username;
+    @Value("${main.db.password}")
+    private String password;
+    @Value("${hibernate.dialect}")
+    private String dialect;
+    @Value("${hibernate.show_sql}")
+    private boolean showSQL;
+    @Value("${hibernate.format_sql}")
+    private boolean formatSQL;
+    @Value("${entitymanager.packages.to.scan}")
+    private String packageScan;
+    @Value("${connection.release_mode}")
+    private String releaseMode;
+
+    @Bean(name = "mainDataSource")
+    @Primary
+    public DataSource mainDataSource() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName(driver);
+        dataSource.setUrl(url);
+        dataSource.setUsername(username);
+        dataSource.setPassword(password);
+        return dataSource;
+    }
+
+    @Bean(name = "mainEntityManager")
+    @Primary
+    public LocalContainerEntityManagerFactoryBean mainEntityManager() {
+        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
+        em.setDataSource(mainDataSource());
+        em.setPackagesToScan(new String[] { packageScan });
+        HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
+        em.setJpaVendorAdapter(vendorAdapter);
+        em.setJpaProperties(hibernateProperties());
+
+        return em;
+    }
+
+    @Bean(name = "mainTransactionManager")
+    @Primary
+    public PlatformTransactionManager mainTransactionManager() {
+        JpaTransactionManager transactionManager = new JpaTransactionManager();
+        transactionManager.setEntityManagerFactory(mainEntityManager().getObject());
+        return transactionManager;
+    }
+
+    @Bean(name = "mainSessionFactory")
+    @Primary
+    public LocalSessionFactoryBean mainSessionFactory() {
+        LocalSessionFactoryBean sessionFactoryBean = new LocalSessionFactoryBean();
+        sessionFactoryBean.setDataSource(mainDataSource());
+        sessionFactoryBean.setPackagesToScan(packageScan);
+        sessionFactoryBean.setHibernateProperties(hibernateProperties());
+        return sessionFactoryBean;
+    }
+
+    private Properties hibernateProperties() {
+        Properties properties = new Properties();
+        properties.put("hibernate.hbm2ddl.auto", false);
+        properties.put("hibernate.dialect", dialect);
+        properties.put("hibernate.temp.use_jdbc_metadata_defaults", "false");
+        properties.put("hibernate.show_sql",showSQL);
+        properties.put("hibernate.format_sql",formatSQL);
+        properties.put("entitymanager.packages.to.scan",packageScan);
+        properties.put("connection.release_mode",releaseMode);
+        return properties;
+    }
+}
+
+ Холли Джолли, это огромный класс, верно? Давайте его немного разделим. В строках с 22 по 29 у нас есть несколько аннотаций, чтобы пометить этот класс как класс конфигурации, поэтому Spring boot выберет этот класс для загрузки при запуске.
+ Во-вторых, у нас есть EnableTransactionManagement, поэтому мы устанавливаем это соединение для поддержки транзакций, затем у нас есть ComponentScan, весенняя аннотация, которая сообщает Spring boot сканировать указанный пакет, чтобы выбрать все классы, указанные ниже этой аннотации, чтобы управлять им, когда это возможно (если аннотировано как честно).
+  После этого у нас есть PropertySource, аннотация, связывающая файл, поэтому нам не нужно реализовывать класс для чтения всех конфигураций из нашего файла конфигурации.
+   Легко тебе не кажется? И, наконец, у нас есть EnableJpaRepositories, и это важная аннотация. Этим мы сообщаем спящему режиму, что этот класс является репозиторием,@Entity , мы также устанавливаем имена наших Entity Manager и Transaction Manager, ребят, ответственных за управление соединениями и транзакциями.
+ После этого у нас есть много аннотаций @Value . Эта аннотация связывает значение из конфигурационного файла, который мы передали через аннотацию @PropertySource , к свойству. Нам просто нужно привязать параметр к свойству с помощью этой аннотации. Затем мы начинаем с наших конфигураций. Сначала мы создаем источник данных или соединение с базой данных.
+ С помощью этого bean-компонента (как вы заметили, мы аннотируем этот класс с помощью @Beanпоэтому мы помечаем его для весенней загрузки, помните аннотацию ComponentScan?), мы можем передать его другим управляемым компонентам для подключения к нашей базе данных. После этого мы создаем bean-компонент менеджера сущностей, передавая соединение (источник данных) и передавая пакет в свойство scan.
+ Мы также создаем диспетчер транзакций, фабрику сеансов и завершаем его передачей свойств гибернации. Выглядит крупно, но в итоге все очень просто. Мы просто подключаемся к базе данных, ничего сложного в конце концов. Но заметили ли вы аннотацию @Primary на каждом управляемом компоненте? Мы обсудим это позже.
+ Теперь создайте файл с именем database.properties в корне нашего проекта, поместите в него все содержимое @Value и заполните все параметры информацией о соединении. Используйте мой в качестве примера, и после его завершения перейдем к нашему первому тесту.
+
+
+# Подключение к основной базе данных
+main.db.driver = org.postgresql.Driver
+main.db.url = jdbc: postgresql: https: //www.linkedin.com/redir/invalid-link-page? url =% 2F% 2F127% 2e0% 2e0% 2e1% 3A5432% 2Fmultidb1
+main.db.username = multidbusr
+main.db.password = секрет
+
+# Конфигурации гибернации
+hibernate.dialect = org.hibernate.dialect.PostgreSQLDialect
+hibernate.show_sql = ложь
+hibernate.format_sql = ложь
+entitymanager.packages.to.scan = org.paulushc
+connection.release_mode = авто
+
+ Создайте пакет с именем rest и создайте наш PersonRest.java
+
+ @RestController
+ @RequestMapping(value = "/person")
+ public class PersonRest {
+
+     @Autowired private PersonRepository repository;
+
+     @RequestMapping(value = "/all")
+     public Iterable<Person> getAll(){
+         return repository.findAll();
+     }
+ }
+
+ Еще раз, чистый класс, у нас есть аннотация RestController, чтобы пометить этот класс как контроллер отдыха, поэтому мы не возвращаем содержимое HTML, а вместо этого возвращаем некоторый контент JSON.
+  Мы помещаем некоторые аннотации RequestMapping, чтобы мы могли сопоставить некоторые URL-адреса нашим вызовам. Мы привязываем здесь наш репозиторий с помощью @Autowiredаннотация, поэтому у Spring будет готовый к использованию наш репозиторий. Но загляните внутрь метода getAll, и… там всего одна строка.
+   Это все. Конечно, мы не ожидаем никаких исключений, помните, это всего лишь пример, в реальном мире у вас будет еще несколько строк, чтобы перехватить некоторые исключения и так далее. Но для краткости просто возвращаем все строки.
+   Метод findAll автоматически генерируется из нашего интерфейса CrudRepository, и поэтому нам не нужно ничего реализовывать. Намного проще, не правда ли?
+
+   Хорошо, теперь пора добавить в игру другие базы данных. Внутри нашего конфигурационного пакета создайте еще 2 класса, называемые DatabaseSecond и DatabaseThird, и давайте создадим что-то похожее на DatabaseMain. Дублируйте файл DatabaseMain.java, выполните рефакторинг, переименовав его в DatabaseSecond и DatabaseThird. После этого удалите аннотации @EnableTransactionMan agement , @ComponentScan , @EnableJpaRepositorie s и @Primary из двух новых классов и переименуйте все элементы mainXXX во второй и третий. После этого заполните файл database.
+   properties другими параметрами подключения, как у меня, и мы готовы к работе.
+
+
+# Подключение к основной базе данных
+main.db.driver = org.postgresql.Driver
+main.db.url = jdbc: postgresql: //127.0.0.1/multidb1
+main.db.username = multidbusr
+main.db.password = секрет
+
+# Второе подключение к базе данных
+second.db.driver = org.postgresql.Driver
+second.db.url = jdbc: postgresql: //127.0.0.1/multidb2
+second.db.username = multidbusr
+second.db.password = секрет
+
+# Третье подключение к базе данных
+Third.db.driver = org.postgresql.Driver
+third.db.url = jdbc: postgresql: //127.0.0.1/multidb3
+third.db.username = multidbusr
+Third.db.password = секрет
+
+# Конфигурации гибернации
+hibernate.dialect = org.hibernate.dialect.PostgreSQLDialect
+hibernate.show_sql = ложь
+hibernate.format_sql = ложь
+entitymanager.packages.to.scan = org.paulushc
+connection.release_mode = авто
+
+Теперь давайте наложим на это немного магии. Давайте сделаем это репозиторием с несколькими базами данных.
+Давайте создадим вспомогательный класс EntityManagerUtils.java внутри пакета utils.
+
+@Component
+public class EntityManagerUtils {
+
+    @Autowired
+    @Qualifier("mainEntityManager")
+    private EntityManager mainDatabase;
+
+    @Autowired
+    @Qualifier("secondEntityManager")
+    private EntityManager secondDatabase;
+
+    @Autowired
+    @Qualifier("thirdEntityManager")
+    private EntityManager thirdDatabase;
+
+    public EntityManager getEm(String url){
+
+        if(url.contains("main"))
+            return mainDatabase;
+        if(url.contains("second"))
+            return secondDatabase;
+        if(url.contains("third"))
+            return thirdDatabase;
+        return mainDatabase;
+    }
+
+    public JpaRepositoryFactory getJpaFactory(String url){
+        return new JpaRepositoryFactory( getEm(url) );
+    }
+
+}
+
+Первое, что вы заметите, это то, что у нас есть 3 автоматически подключенных EntityManager, и вы спросите меня, почему.
+Это будут точки входа в наши базы данных, а этот класс будет маршрутизатором.
+Внимательно посмотрите на аннотации @Qualifier на каждом менеджере сущностей, и вы узнаете имена, это те же самые имена, которые мы даем нашим менеджерам сущностей во время создания классов конфигурации базы данных.
+ Мы используем аннотацию Qualifier, чтобы пометить эту инъекцию зависимости и пометить ее, поэтому spring не будет автоматически подключать неправильное соединение для нас.
+  Метод getEm использует элементарный метод привязки каждого подключения к правилу, и, как я уже сказал, мы будем использовать URL-адреса для маршрутизации баз данных.
+   GetJpaFactory внесет изменения в наш JpaRepository, чтобы он знал, к какой базе данных нужно подключиться.
+Чтобы проверить это, давайте создадим новый репозиторий отдыха, на этот раз под названием MultiPersonRest, и давайте скопируем наш базовый репозиторий, чтобы немного ускорить работу. Сделав этот шаг, мы можем внести некоторые изменения в первую аннотацию RequestMapping, изменив с / person на /multiperson. Если вы запустите его прямо сейчас, вы получите тот же результат, что и на предыдущем контроллере. Чтобы реализовать нашу часть с несколькими базами данных, нам потребуются некоторые изменения. Во-первых, давайте создадим метод, который направляет вызов в нужную базу данных, используя наш EntityManagerUtils. Затем мы внесем некоторые изменения в наш метод getAll и создадим еще один для тестирования.
+
+
+@RestController
+@RequestMapping(value = "/multiperson")
+public class MultiPersonRest {
+
+    @Autowired private PersonRepository repository;
+    @Autowired private HttpServletRequest context;
+    @Autowired private EntityManagerUtils emUtils;
+
+    @RequestMapping(value = "/all")
+    public Iterable<Person> getAll(){
+        setRepository( context.getRequestURL().toString() );
+        return repository.findAll();
+    }
+
+    @RequestMapping(value = "/single/{id}")
+    public Person getSingle(@PathVariable("id") Long id){
+        setRepository( context.getRequestURL().toString() );
+        return repository.findOne(id);
+    }
+
+    private void setRepository(String url){
+        repository = emUtils.getJpaFactory(url).getRepository(PersonRepository.class);
+    }
+
+}
+Внесите некоторые изменения в свою базу данных, чтобы вы могли проверить, работает ли она, и вы увидите различия, как в моем тесте.
+Чтобы проверить это, я создал еще один вызов своего контроллера отдыха, добавив вызов к одному результату, используя идентификатор в качестве параметра.

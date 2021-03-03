@@ -1,0 +1,9 @@
+model\member\Member.class
+anaotherConfiguration\DataSourceConfig.class
+repository\card\CardRepository.class
+anaotherConfiguration\MultitenancyProperties.class
+repository\member\MemberRepository.class
+model\card\Card.class
+model\cardholder\CardHolder.class
+repository\cardholder\CardHolderRepository.class
+Application.class
