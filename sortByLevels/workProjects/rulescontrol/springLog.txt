@@ -1,0 +1,2 @@
+2021-03-09 14:50:45.533  INFO 1980 --- [main] c.e.r.RulescontrolApplication            : Starting RulescontrolApplication using Java 15.0.1 on DESKTOP-94H032M with PID 1980 (C:\Users\Арман\IdeaProjects\WORK\sortByLevels\workProjects\rulescontrol\target\classes started by Арман in C:\Users\Арман\IdeaProjects\WORK\sortByLevels\workProjects\rulescontrol)
+2021-03-09 14:50:45.535  INFO 1980 --- [main] c.e.r.RulescontrolApplication            : No active profile set, falling back to default profiles: default
